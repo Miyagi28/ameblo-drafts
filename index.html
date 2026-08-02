@@ -68,15 +68,50 @@
     min-height: 1.2em;
   }
 
+  .token-settings {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 32px;
+  }
+
+  .token-toggle-btn {
+    appearance: none;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    color: var(--accent-dark);
+    font-size: 0.82rem;
+    padding: 6px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .token-toggle-btn:hover {
+    border-color: var(--accent);
+  }
+
   .token-box {
-    max-width: 420px;
-    margin: 0 auto 32px;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(90vw, 360px);
     padding: 16px 20px;
     border-radius: 14px;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 12px 32px rgba(0, 130, 70, 0.18);
+    z-index: 5;
+    display: none;
+  }
+
+  .token-box.open {
+    display: block;
   }
 
   .token-box label {
@@ -249,10 +284,13 @@
       <p>drafts/ 配下の下書き一覧（新しい順）</p>
     </header>
 
-    <div class="token-box">
-      <label for="ghToken">GitHub Personal Access Token（削除操作に使用）</label>
-      <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
-      <p class="token-note">このブラウザに保存されます</p>
+    <div class="token-settings">
+      <button type="button" id="tokenToggleBtn" class="token-toggle-btn">🔑 トークン設定</button>
+      <div class="token-box" id="tokenBox">
+        <label for="ghToken">GitHub Personal Access Token（削除操作に使用）</label>
+        <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+        <p class="token-note">このブラウザに保存されます</p>
+      </div>
     </div>
 
     <div id="status">読み込み中...</div>
@@ -269,11 +307,54 @@
 
   const statusEl = document.getElementById("status");
   const listEl = document.getElementById("card-list");
+  const tokenSettingsEl = document.querySelector(".token-settings");
+  const tokenToggleBtn = document.getElementById("tokenToggleBtn");
+  const tokenBox = document.getElementById("tokenBox");
   const tokenInput = document.getElementById("ghToken");
 
+  function updateTokenButtonLabel() {
+    tokenToggleBtn.textContent = localStorage.getItem(TOKEN_KEY)
+      ? "🔑 トークン設定済み"
+      : "🔑 トークン設定";
+  }
+
+  function openTokenBox() {
+    tokenBox.classList.add("open");
+    tokenInput.focus();
+  }
+
+  function closeTokenBox() {
+    tokenBox.classList.remove("open");
+  }
+
   tokenInput.value = localStorage.getItem(TOKEN_KEY) || "";
+  updateTokenButtonLabel();
+
+  tokenToggleBtn.addEventListener("click", () => {
+    if (tokenBox.classList.contains("open")) {
+      closeTokenBox();
+    } else {
+      openTokenBox();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!tokenSettingsEl.contains(e.target)) {
+      closeTokenBox();
+    }
+  });
+
   tokenInput.addEventListener("change", () => {
     localStorage.setItem(TOKEN_KEY, tokenInput.value.trim());
+    updateTokenButtonLabel();
+  });
+
+  tokenInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      localStorage.setItem(TOKEN_KEY, tokenInput.value.trim());
+      updateTokenButtonLabel();
+      closeTokenBox();
+    }
   });
 
   function updateStatusCount() {
@@ -289,7 +370,8 @@
   async function deleteDraft(file, cardEl) {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
-      alert("削除にはGitHub Personal Access Tokenが必要です。上部の入力欄にトークンを入力してください。");
+      alert("削除にはGitHub Personal Access Tokenが必要です。トークンを入力してください。");
+      openTokenBox();
       return;
     }
     if (!confirm(`「${file.name}」を本当に削除しますか？`)) return;
