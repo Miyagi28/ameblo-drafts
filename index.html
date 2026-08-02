@@ -6,11 +6,12 @@
 <title>Ameblo Drafts Viewer</title>
 <style>
   :root {
-    --card-bg: rgba(255, 255, 255, 0.06);
-    --card-border: rgba(255, 255, 255, 0.14);
-    --text-main: #eef1f8;
-    --text-sub: #9aa3bd;
-    --accent: #8ea2ff;
+    --card-bg: rgba(255, 255, 255, 0.55);
+    --card-border: rgba(0, 150, 90, 0.22);
+    --text-main: #1f3a2d;
+    --text-sub: #5f7d6c;
+    --accent: #00a960;
+    --accent-dark: #00893f;
   }
 
   * { box-sizing: border-box; }
@@ -19,7 +20,7 @@
     margin: 0;
     padding: 0;
     min-height: 100%;
-    background: #0a0e1f;
+    background: #eef8f0;
     color: var(--text-main);
     font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", sans-serif;
   }
@@ -28,17 +29,7 @@
     position: relative;
     overflow-x: hidden;
     background:
-      radial-gradient(ellipse at top, #1b2454 0%, #0a0e1f 55%, #05070f 100%);
-  }
-
-  /* star field */
-  #stars, #stars2, #stars3 {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 0;
+      radial-gradient(ellipse at top, #e3f6e8 0%, #eef8f0 55%, #f5faf3 100%);
   }
 
   .container {
@@ -57,7 +48,7 @@
   header h1 {
     font-size: 2.2rem;
     margin: 0 0 8px;
-    background: linear-gradient(120deg, #cfd8ff, #8ea2ff 60%, #d9b8ff);
+    background: linear-gradient(120deg, #00c46f, #00a960 55%, #007a3d);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -90,14 +81,14 @@
     padding: 22px 26px;
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 8px 32px rgba(0, 130, 70, 0.12);
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
 
   .card:hover {
     transform: translateY(-3px);
-    border-color: rgba(142, 162, 255, 0.5);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    border-color: rgba(0, 169, 96, 0.5);
+    box-shadow: 0 12px 40px rgba(0, 130, 70, 0.2);
   }
 
   .card-top {
@@ -127,11 +118,36 @@
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid var(--card-border);
-    background: rgba(0, 0, 0, 0.25);
+    background: rgba(255, 255, 255, 0.5);
   }
 
   .card-toggle.open {
     display: block;
+  }
+
+  .card-toggle-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 10px;
+    background: rgba(0, 169, 96, 0.08);
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .card-close-btn {
+    appearance: none;
+    border: 1px solid var(--card-border);
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--accent-dark);
+    font-size: 0.8rem;
+    padding: 5px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .card-close-btn:hover {
+    background: #fff;
+    border-color: var(--accent);
   }
 
   .card-toggle iframe {
@@ -151,7 +167,7 @@
     border-bottom: 1px dashed var(--text-sub);
   }
 
-  .card-link:hover { color: var(--accent); border-color: var(--accent); }
+  .card-link:hover { color: var(--accent-dark); border-color: var(--accent-dark); }
 
   .empty, .error {
     text-align: center;
@@ -159,14 +175,10 @@
     padding: 40px 0;
   }
 
-  .error { color: #ff9b9b; }
+  .error { color: #d64545; }
 </style>
 </head>
 <body>
-  <div id="stars"></div>
-  <div id="stars2"></div>
-  <div id="stars3"></div>
-
   <div class="container">
     <header>
       <h1>Ameblo Drafts</h1>
@@ -185,45 +197,6 @@
 
   const statusEl = document.getElementById("status");
   const listEl = document.getElementById("card-list");
-
-  function makeStars(id, count, size, duration) {
-    const el = document.getElementById(id);
-    let shadows = [];
-    for (let i = 0; i < count; i++) {
-      const x = Math.floor(Math.random() * 2000);
-      const y = Math.floor(Math.random() * 2000);
-      shadows.push(`${x}px ${y}px #fff`);
-    }
-    const shadowStr = shadows.join(",");
-    el.style.width = size + "px";
-    el.style.height = size + "px";
-    el.style.borderRadius = "50%";
-    el.style.background = "transparent";
-    el.style.boxShadow = shadowStr;
-    el.style.animation = `twinkle ${duration}s ease-in-out infinite alternate`;
-
-    const style = document.createElement("style");
-    style.textContent = `
-      #${id}::after {
-        content: "";
-        position: absolute;
-        top: 2000px;
-        width: ${size}px;
-        height: ${size}px;
-        border-radius: 50%;
-        box-shadow: ${shadowStr};
-      }
-      @keyframes twinkle {
-        from { opacity: 0.5; }
-        to { opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  makeStars("stars", 140, 1, 4);
-  makeStars("stars2", 80, 2, 6);
-  makeStars("stars3", 40, 3, 8);
 
   function extractDateFromName(name) {
     const m = name.match(/(\d{4})-(\d{2})-(\d{2})/);
@@ -265,12 +238,24 @@
     const toggleArea = document.createElement("div");
     toggleArea.className = "card-toggle";
 
+    const closeBar = document.createElement("div");
+    closeBar.className = "card-toggle-bar";
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "card-close-btn";
+    closeBtn.textContent = "← 一覧に戻る";
+    closeBtn.addEventListener("click", () => {
+      toggleArea.classList.remove("open");
+    });
+    closeBar.appendChild(closeBtn);
+
     const iframe = document.createElement("iframe");
     let loaded = false;
 
     top.addEventListener("click", () => {
       const isOpen = toggleArea.classList.toggle("open");
       if (isOpen && !loaded) {
+        toggleArea.appendChild(closeBar);
         iframe.src = file.path;
         toggleArea.appendChild(iframe);
         loaded = true;
@@ -288,7 +273,7 @@
     card.appendChild(toggleArea);
     card.appendChild(link);
 
-    extractTitle(file.path, file.name).then((t) => {
+    extractTitle(file.downloadUrl, file.name).then((t) => {
       title.textContent = t;
     });
 
@@ -307,7 +292,7 @@
       const data = await res.json();
       const files = data
         .filter((f) => f.type === "file" && f.name.toLowerCase().endsWith(".html"))
-        .map((f) => ({ name: f.name, path: `drafts/${f.name}` }))
+        .map((f) => ({ name: f.name, path: `drafts/${f.name}`, downloadUrl: f.download_url }))
         .sort((a, b) => (a.name < b.name ? 1 : -1));
 
       if (files.length === 0) {
