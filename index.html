@@ -68,6 +68,46 @@
     min-height: 1.2em;
   }
 
+  .token-box {
+    max-width: 420px;
+    margin: 0 auto 32px;
+    padding: 16px 20px;
+    border-radius: 14px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+
+  .token-box label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 6px;
+  }
+
+  .token-box input {
+    width: 100%;
+    font-size: 0.85rem;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--card-border);
+    background: rgba(255, 255, 255, 0.8);
+    color: var(--text-main);
+  }
+
+  .token-box input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .token-note {
+    margin: 8px 0 0;
+    font-size: 0.75rem;
+    color: var(--text-sub);
+  }
+
   .card-list {
     display: flex;
     flex-direction: column;
@@ -110,6 +150,30 @@
     color: var(--accent);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+  }
+
+  .card-header-right {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .card-delete-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 2px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+
+  .card-delete-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
   }
 
   .card-toggle {
@@ -185,6 +249,12 @@
       <p>drafts/ 配下の下書き一覧（新しい順）</p>
     </header>
 
+    <div class="token-box">
+      <label for="ghToken">GitHub Personal Access Token（削除操作に使用）</label>
+      <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+      <p class="token-note">このブラウザに保存されます</p>
+    </div>
+
     <div id="status">読み込み中...</div>
     <div class="card-list" id="card-list"></div>
   </div>
@@ -195,8 +265,60 @@
   const REPO_NAME = "ameblo-drafts";
   const BRANCH = "main";
 
+  const TOKEN_KEY = "amebloDraftsGhToken";
+
   const statusEl = document.getElementById("status");
   const listEl = document.getElementById("card-list");
+  const tokenInput = document.getElementById("ghToken");
+
+  tokenInput.value = localStorage.getItem(TOKEN_KEY) || "";
+  tokenInput.addEventListener("change", () => {
+    localStorage.setItem(TOKEN_KEY, tokenInput.value.trim());
+  });
+
+  function updateStatusCount() {
+    const remaining = listEl.children.length;
+    if (remaining === 0) {
+      statusEl.textContent = "";
+      listEl.innerHTML = '<div class="empty">まだ下書きがありません</div>';
+    } else {
+      statusEl.textContent = `${remaining} 件の下書き`;
+    }
+  }
+
+  async function deleteDraft(file, cardEl) {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      alert("削除にはGitHub Personal Access Tokenが必要です。上部の入力欄にトークンを入力してください。");
+      return;
+    }
+    if (!confirm(`「${file.name}」を本当に削除しますか？`)) return;
+
+    const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${file.path}`;
+    try {
+      const res = await fetch(apiUrl, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${token}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        body: JSON.stringify({
+          message: `Delete draft: ${file.name}`,
+          sha: file.sha,
+          branch: BRANCH,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `HTTP ${res.status}`);
+      }
+      cardEl.remove();
+      updateStatusCount();
+    } catch (err) {
+      alert(`削除に失敗しました: ${err.message}`);
+    }
+  }
 
   function extractDateFromName(name) {
     const m = name.match(/(\d{4})-(\d{2})-(\d{2})/);
@@ -228,12 +350,28 @@
     title.className = "card-title";
     title.textContent = file.name;
 
+    const headerRight = document.createElement("div");
+    headerRight.className = "card-header-right";
+
     const date = document.createElement("div");
     date.className = "card-date";
     date.textContent = extractDateFromName(file.name);
 
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "card-delete-btn";
+    deleteBtn.textContent = "🗑️";
+    deleteBtn.title = "削除";
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteDraft(file, card);
+    });
+
+    headerRight.appendChild(date);
+    headerRight.appendChild(deleteBtn);
+
     top.appendChild(title);
-    top.appendChild(date);
+    top.appendChild(headerRight);
 
     const toggleArea = document.createElement("div");
     toggleArea.className = "card-toggle";
@@ -292,7 +430,7 @@
       const data = await res.json();
       const files = data
         .filter((f) => f.type === "file" && f.name.toLowerCase().endsWith(".html"))
-        .map((f) => ({ name: f.name, path: `drafts/${f.name}`, downloadUrl: f.download_url }))
+        .map((f) => ({ name: f.name, path: `drafts/${f.name}`, downloadUrl: f.download_url, sha: f.sha }))
         .sort((a, b) => (a.name < b.name ? 1 : -1));
 
       if (files.length === 0) {
