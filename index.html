@@ -226,12 +226,50 @@
 
   .card-toggle-bar {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
     padding: 8px 10px;
     background: rgba(0, 169, 96, 0.08);
     border-bottom: 1px solid var(--card-border);
   }
 
+  .mode-tabs {
+    display: flex;
+    gap: 6px;
+  }
+
+  .tab-btn {
+    appearance: none;
+    border: 1px solid var(--card-border);
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--text-sub);
+    font-size: 0.78rem;
+    padding: 5px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .tab-btn:hover:not(.active) {
+    border-color: var(--accent);
+    color: var(--accent-dark);
+  }
+
+  .tab-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .toggle-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .action-btn,
   .card-close-btn {
     appearance: none;
     border: 1px solid var(--card-border);
@@ -244,9 +282,25 @@
     transition: background 0.15s ease, border-color 0.15s ease;
   }
 
+  .action-btn:hover,
   .card-close-btn:hover {
     background: #fff;
     border-color: var(--accent);
+  }
+
+  .action-btn.save-btn {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .action-btn.save-btn:hover {
+    background: var(--accent-dark);
+  }
+
+  .action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .card-toggle iframe {
@@ -255,6 +309,25 @@
     border: none;
     background: #f4f4f6;
     display: block;
+  }
+
+  .card-editor {
+    width: 100%;
+    height: 420px;
+    box-sizing: border-box;
+    border: none;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    padding: 14px;
+    resize: vertical;
+    display: block;
+  }
+
+  .hidden-el {
+    display: none !important;
   }
 
   .card-link {
@@ -287,7 +360,7 @@
     <div class="token-settings">
       <button type="button" id="tokenToggleBtn" class="token-toggle-btn">🔑 トークン設定</button>
       <div class="token-box" id="tokenBox">
-        <label for="ghToken">GitHub Personal Access Token（削除操作に使用）</label>
+        <label for="ghToken">GitHub Personal Access Token（削除・保存操作に使用）</label>
         <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
         <p class="token-note">このブラウザに保存されます</p>
       </div>
@@ -402,6 +475,52 @@
     }
   }
 
+  const fallbackCopyEl = document.createElement("textarea");
+  fallbackCopyEl.setAttribute("aria-hidden", "true");
+  fallbackCopyEl.style.position = "fixed";
+  fallbackCopyEl.style.top = "-9999px";
+  fallbackCopyEl.style.left = "-9999px";
+  document.body.appendChild(fallbackCopyEl);
+
+  function fallbackCopyToClipboard(text) {
+    fallbackCopyEl.value = text;
+    fallbackCopyEl.focus();
+    fallbackCopyEl.select();
+    try {
+      document.execCommand("copy");
+    } catch (e) {
+      /* noop */
+    }
+  }
+
+  async function copyTextToClipboard(text) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      throw new Error("clipboard api unavailable");
+    } catch (err) {
+      fallbackCopyToClipboard(text);
+    }
+  }
+
+  function utf8ToBase64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let binary = "";
+    bytes.forEach((b) => {
+      binary += String.fromCharCode(b);
+    });
+    return btoa(binary);
+  }
+
+  function flashButton(btn, tempText, originalText, delay) {
+    btn.textContent = tempText;
+    setTimeout(() => {
+      btn.textContent = originalText;
+    }, delay || 1500);
+  }
+
   function extractDateFromName(name) {
     const m = name.match(/(\d{4})-(\d{2})-(\d{2})/);
     if (m) return `${m[1]}/${m[2]}/${m[3]}`;
@@ -458,27 +577,166 @@
     const toggleArea = document.createElement("div");
     toggleArea.className = "card-toggle";
 
-    const closeBar = document.createElement("div");
-    closeBar.className = "card-toggle-bar";
+    // --- toolbar: mode tabs (preview/edit) + copy/save/close actions ---
+    const toolbar = document.createElement("div");
+    toolbar.className = "card-toggle-bar";
+
+    const tabGroup = document.createElement("div");
+    tabGroup.className = "mode-tabs";
+    const previewTabBtn = document.createElement("button");
+    previewTabBtn.type = "button";
+    previewTabBtn.className = "tab-btn active";
+    previewTabBtn.textContent = "👁️ プレビュー";
+    const editTabBtn = document.createElement("button");
+    editTabBtn.type = "button";
+    editTabBtn.className = "tab-btn";
+    editTabBtn.textContent = "✏️ 編集する";
+    tabGroup.appendChild(previewTabBtn);
+    tabGroup.appendChild(editTabBtn);
+
+    const actionGroup = document.createElement("div");
+    actionGroup.className = "toggle-actions";
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "action-btn";
+    copyBtn.textContent = "📋 コピー";
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "action-btn save-btn hidden-el";
+    saveBtn.textContent = "💾 保存";
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
     closeBtn.className = "card-close-btn";
     closeBtn.textContent = "← 一覧に戻る";
+    actionGroup.appendChild(copyBtn);
+    actionGroup.appendChild(saveBtn);
+    actionGroup.appendChild(closeBtn);
+
+    toolbar.appendChild(tabGroup);
+    toolbar.appendChild(actionGroup);
+
     closeBtn.addEventListener("click", () => {
       toggleArea.classList.remove("open");
     });
-    closeBar.appendChild(closeBtn);
 
+    // --- content: iframe preview + raw HTML editor ---
     const iframe = document.createElement("iframe");
-    let loaded = false;
+    const textarea = document.createElement("textarea");
+    textarea.className = "card-editor hidden-el";
+    textarea.spellcheck = false;
+    textarea.placeholder = "読み込み中...";
+
+    let built = false; // toolbar/iframe/textarea appended to toggleArea
+    let iframeLoaded = false; // iframe.src has been set
+    let sourceLoaded = false; // textarea has fetched the raw source
+
+    async function ensureSourceLoaded() {
+      if (sourceLoaded) return;
+      textarea.value = "";
+      textarea.placeholder = "読み込み中...";
+      try {
+        const res = await fetch(file.downloadUrl, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        textarea.value = await res.text();
+        sourceLoaded = true;
+      } catch (err) {
+        textarea.placeholder = "";
+        alert(`ソースの取得に失敗しました: ${err.message}`);
+      }
+    }
+
+    function setMode(mode) {
+      if (mode === "edit") {
+        editTabBtn.classList.add("active");
+        previewTabBtn.classList.remove("active");
+        textarea.classList.remove("hidden-el");
+        iframe.classList.add("hidden-el");
+        saveBtn.classList.remove("hidden-el");
+        ensureSourceLoaded();
+      } else {
+        previewTabBtn.classList.add("active");
+        editTabBtn.classList.remove("active");
+        iframe.classList.remove("hidden-el");
+        textarea.classList.add("hidden-el");
+        saveBtn.classList.add("hidden-el");
+        if (!iframeLoaded) {
+          iframe.src = file.path;
+          iframeLoaded = true;
+        }
+      }
+    }
+
+    previewTabBtn.addEventListener("click", () => setMode("preview"));
+    editTabBtn.addEventListener("click", () => setMode("edit"));
+
+    copyBtn.addEventListener("click", async () => {
+      await ensureSourceLoaded();
+      await copyTextToClipboard(textarea.value);
+      flashButton(copyBtn, "✅ コピーしました", "📋 コピー");
+    });
+
+    saveBtn.addEventListener("click", async () => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) {
+        alert("保存にはGitHub Personal Access Tokenが必要です。トークンを入力してください。");
+        openTokenBox();
+        return;
+      }
+      if (!confirm(`「${file.name}」を上書き保存しますか？`)) return;
+
+      const content = textarea.value;
+      const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${file.path}`;
+      saveBtn.disabled = true;
+      saveBtn.textContent = "💾 保存中...";
+      try {
+        const res = await fetch(apiUrl, {
+          method: "PUT",
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${token}`,
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+          body: JSON.stringify({
+            message: `Update draft: ${file.name}`,
+            content: utf8ToBase64(content),
+            sha: file.sha,
+            branch: BRANCH,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        if (data.content && data.content.sha) file.sha = data.content.sha;
+
+        const titleMatch = content.match(/<title[^>]*>([^<]*)<\/title>/i);
+        if (titleMatch && titleMatch[1].trim()) title.textContent = titleMatch[1].trim();
+
+        // force the preview iframe to reload the freshly saved content
+        iframeLoaded = false;
+        if (!iframe.classList.contains("hidden-el")) {
+          iframe.src = `${file.path}?_=${Date.now()}`;
+          iframeLoaded = true;
+        }
+
+        flashButton(saveBtn, "✅ 保存しました", "💾 保存");
+        saveBtn.disabled = false;
+      } catch (err) {
+        alert(`保存に失敗しました: ${err.message}`);
+        saveBtn.textContent = "💾 保存";
+        saveBtn.disabled = false;
+      }
+    });
 
     top.addEventListener("click", () => {
       const isOpen = toggleArea.classList.toggle("open");
-      if (isOpen && !loaded) {
-        toggleArea.appendChild(closeBar);
-        iframe.src = file.path;
+      if (isOpen && !built) {
+        toggleArea.appendChild(toolbar);
         toggleArea.appendChild(iframe);
-        loaded = true;
+        toggleArea.appendChild(textarea);
+        built = true;
+        setMode("preview");
       }
     });
 
