@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ameblo Drafts Viewer</title>
+<style>
+  :root {
+    --card-bg: rgba(255, 255, 255, 0.06);
+    --card-border: rgba(255, 255, 255, 0.14);
+    --text-main: #eef1f8;
+    --text-sub: #9aa3bd;
+    --accent: #8ea2ff;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    background: #0a0e1f;
+    color: var(--text-main);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", sans-serif;
+  }
+
+  body {
+    position: relative;
+    overflow-x: hidden;
+    background:
+      radial-gradient(ellipse at top, #1b2454 0%, #0a0e1f 55%, #05070f 100%);
+  }
+
+  /* star field */
+  #stars, #stars2, #stars3 {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  header h1 {
+    font-size: 2.2rem;
+    margin: 0 0 8px;
+    background: linear-gradient(120deg, #cfd8ff, #8ea2ff 60%, #d9b8ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: 0.02em;
+  }
+
+  header p {
+    color: var(--text-sub);
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  #status {
+    text-align: center;
+    color: var(--text-sub);
+    margin-bottom: 24px;
+    min-height: 1.2em;
+  }
+
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    padding: 22px 26px;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(142, 162, 255, 0.5);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    cursor: pointer;
+  }
+
+  .card-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-main);
+  }
+
+  .card-date {
+    font-size: 0.82rem;
+    color: var(--accent);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .card-toggle {
+    margin-top: 14px;
+    display: none;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--card-border);
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  .card-toggle.open {
+    display: block;
+  }
+
+  .card-toggle iframe {
+    width: 100%;
+    height: 420px;
+    border: none;
+    background: #f4f4f6;
+    display: block;
+  }
+
+  .card-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--text-sub);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--text-sub);
+  }
+
+  .card-link:hover { color: var(--accent); border-color: var(--accent); }
+
+  .empty, .error {
+    text-align: center;
+    color: var(--text-sub);
+    padding: 40px 0;
+  }
+
+  .error { color: #ff9b9b; }
+</style>
+</head>
+<body>
+  <div id="stars"></div>
+  <div id="stars2"></div>
+  <div id="stars3"></div>
+
+  <div class="container">
+    <header>
+      <h1>Ameblo Drafts</h1>
+      <p>drafts/ 配下の下書き一覧（新しい順）</p>
+    </header>
+
+    <div id="status">読み込み中...</div>
+    <div class="card-list" id="card-list"></div>
+  </div>
+
+<script>
+(function () {
+  const REPO_OWNER = "Miyagi28";
+  const REPO_NAME = "ameblo-drafts";
+  const BRANCH = "main";
+
+  const statusEl = document.getElementById("status");
+  const listEl = document.getElementById("card-list");
+
+  function makeStars(id, count, size, duration) {
+    const el = document.getElementById(id);
+    let shadows = [];
+    for (let i = 0; i < count; i++) {
+      const x = Math.floor(Math.random() * 2000);
+      const y = Math.floor(Math.random() * 2000);
+      shadows.push(`${x}px ${y}px #fff`);
+    }
+    const shadowStr = shadows.join(",");
+    el.style.width = size + "px";
+    el.style.height = size + "px";
+    el.style.borderRadius = "50%";
+    el.style.background = "transparent";
+    el.style.boxShadow = shadowStr;
+    el.style.animation = `twinkle ${duration}s ease-in-out infinite alternate`;
+
+    const style = document.createElement("style");
+    style.textContent = `
+      #${id}::after {
+        content: "";
+        position: absolute;
+        top: 2000px;
+        width: ${size}px;
+        height: ${size}px;
+        border-radius: 50%;
+        box-shadow: ${shadowStr};
+      }
+      @keyframes twinkle {
+        from { opacity: 0.5; }
+        to { opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  makeStars("stars", 140, 1, 4);
+  makeStars("stars2", 80, 2, 6);
+  makeStars("stars3", 40, 3, 8);
+
+  function extractDateFromName(name) {
+    const m = name.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}/${m[2]}/${m[3]}`;
+    return "";
+  }
+
+  async function extractTitle(path, fallback) {
+    try {
+      const res = await fetch(path, { cache: "no-store" });
+      if (!res.ok) return fallback;
+      const text = await res.text();
+      const match = text.match(/<title[^>]*>([^<]*)<\/title>/i);
+      if (match && match[1].trim()) return match[1].trim();
+      return fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  function createCard(file) {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const top = document.createElement("div");
+    top.className = "card-top";
+
+    const title = document.createElement("div");
+    title.className = "card-title";
+    title.textContent = file.name;
+
+    const date = document.createElement("div");
+    date.className = "card-date";
+    date.textContent = extractDateFromName(file.name);
+
+    top.appendChild(title);
+    top.appendChild(date);
+
+    const toggleArea = document.createElement("div");
+    toggleArea.className = "card-toggle";
+
+    const iframe = document.createElement("iframe");
+    let loaded = false;
+
+    top.addEventListener("click", () => {
+      const isOpen = toggleArea.classList.toggle("open");
+      if (isOpen && !loaded) {
+        iframe.src = file.path;
+        toggleArea.appendChild(iframe);
+        loaded = true;
+      }
+    });
+
+    const link = document.createElement("a");
+    link.className = "card-link";
+    link.href = file.path;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "新しいタブで開く ↗";
+
+    card.appendChild(top);
+    card.appendChild(toggleArea);
+    card.appendChild(link);
+
+    extractTitle(file.path, file.name).then((t) => {
+      title.textContent = t;
+    });
+
+    return card;
+  }
+
+  async function loadDrafts() {
+    const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/drafts?ref=${BRANCH}`;
+    try {
+      const res = await fetch(apiUrl, {
+        headers: { Accept: "application/vnd.github+json" },
+      });
+      if (!res.ok) {
+        throw new Error(`GitHub API error: ${res.status}`);
+      }
+      const data = await res.json();
+      const files = data
+        .filter((f) => f.type === "file" && f.name.toLowerCase().endsWith(".html"))
+        .map((f) => ({ name: f.name, path: `drafts/${f.name}` }))
+        .sort((a, b) => (a.name < b.name ? 1 : -1));
+
+      if (files.length === 0) {
+        statusEl.textContent = "";
+        listEl.innerHTML = '<div class="empty">まだ下書きがありません</div>';
+        return;
+      }
+
+      statusEl.textContent = `${files.length} 件の下書き`;
+      files.forEach((file) => listEl.appendChild(createCard(file)));
+    } catch (err) {
+      statusEl.textContent = "";
+      listEl.innerHTML = `<div class="error">一覧の取得に失敗しました: ${err.message}</div>`;
+    }
+  }
+
+  loadDrafts();
+})();
+</script>
+</body>
+</html>
