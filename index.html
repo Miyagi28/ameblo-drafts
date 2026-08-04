@@ -399,6 +399,15 @@
       : "🔑 トークン設定";
   }
 
+  // トークンが設定されていれば認証付きリクエスト(5000回/時間)にし、
+  // 未設定なら従来通り未認証(60回/時間)にフォールバックする
+  function ghHeaders(extra) {
+    const headers = Object.assign({}, extra);
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  }
+
   function openTokenBox() {
     tokenBox.classList.add("open");
     tokenInput.focus();
@@ -537,7 +546,7 @@
 
   async function extractTitle(path, fallback) {
     try {
-      const res = await fetch(path, { cache: "no-store" });
+      const res = await fetch(path, { cache: "no-store", headers: ghHeaders() });
       if (!res.ok) return fallback;
       const text = await res.text();
       const match = text.match(/<title[^>]*>([^<]*)<\/title>/i);
@@ -643,7 +652,7 @@
       textarea.value = "";
       textarea.placeholder = "読み込み中...";
       try {
-        const res = await fetch(file.downloadUrl, { cache: "no-store" });
+        const res = await fetch(file.downloadUrl, { cache: "no-store", headers: ghHeaders() });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         textarea.value = await res.text();
         sourceLoaded = true;
@@ -770,7 +779,7 @@
     const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/drafts?ref=${BRANCH}`;
     try {
       const res = await fetch(apiUrl, {
-        headers: { Accept: "application/vnd.github+json" },
+        headers: ghHeaders({ Accept: "application/vnd.github+json" }),
       });
       if (!res.ok) {
         throw new Error(`GitHub API error: ${res.status}`);
