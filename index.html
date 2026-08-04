@@ -72,6 +72,7 @@
     position: relative;
     display: flex;
     justify-content: center;
+    gap: 10px;
     margin-bottom: 32px;
   }
 
@@ -91,6 +92,12 @@
 
   .token-toggle-btn:hover {
     border-color: var(--accent);
+  }
+
+  a.token-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
   }
 
   .token-box {
@@ -359,6 +366,7 @@
 
     <div class="token-settings">
       <button type="button" id="tokenToggleBtn" class="token-toggle-btn">🔑 トークン設定</button>
+      <a href="https://github.com/Miyagi28/ameblo-drafts/edit/main/profile/topics-queue.md" target="_blank" rel="noopener noreferrer" class="token-toggle-btn">📝 ネタ帳を編集</a>
       <div class="token-box" id="tokenBox">
         <label for="ghToken">GitHub Personal Access Token（削除・保存操作に使用）</label>
         <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
